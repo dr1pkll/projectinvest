@@ -1,9 +1,7 @@
-from pandas.core.arrays import period
-from pandas.core.dtypes.cast import na_value_for_dtype
 import requests
 import pandas as pd
 import os
-from datetime import date 
+from datetime import date
 today = date.today().strftime("%Y-%m-%d")
 def cache_path(ticker, cache_dir="data/cache"):
     return f"{cache_dir}/{ticker}.parquet"
@@ -83,11 +81,46 @@ def data_integrity_report(df, ticker):
     zero_mask = df["VOLUME"][zero_true]
     report["zero_volume"] ={"count":len(zero_mask), "dates":zero_mask.index.strftime("%Y-%m-%d").tolist()}
     return report
-def detect_anomality(df,window=(1,5,20),percentile=0.99):
-    returns = df["CLOSE"].pct_change(period = n)
-    quantile_anomalies = returns.abs().quantile(0,99)
-    outliers = returns[returns.abs()>quantile_anomalies]
+def detect_anomalies(df, return_periods=(1, 5, 20), lookback=250, percentile=0.99):
+    anomalies = {}
+    for period in return_periods:
+        returns =df["CLOSE"].pct_change(periods = period)
+        return_abs = returns.abs()
+        threshold = return_abs.rolling(window = lookback, min_periods =lookback).quantile(percentile).shift(1)
+        is_outlier = return_abs > threshold
+        outlier = returns[is_outlier]
+        anomalies[period]={
+            "count":len(outlier),
+            "dates":outlier.index.strftime("%Y-%m-%d").tolist(),
+            "values":outlier.values.tolist()
+        }
+    return anomalies
 
-print(close_prices.shape)
-print(month_price.tail(10))
-print(data_integrity_report(prices["SBER"], "SBER"))
+def print_integrity_report(report, ticker):
+    print(f"\n******* Интегральная проверка данных для {ticker} ******")
+    print(f"Данные содержат {report['duplicated']} дубликатов")
+    gaps = report["gaps"]
+    print(f"Разрывы в календаре: {gaps['count']}")
+    if gaps['count']:
+        gaps_df = pd.DataFrame(list(gaps["dates"].items()),columns=["Дата", "Разрыв (дней)"])
+        print(gaps_df.to_string(index=False))
+    zv = report['zero_volume']
+    print(f'\n Нулевой объем торгов {zv["count"]}')
+    if zv['count']:
+        print(pd.DataFrame({"Дата": zv['dates']}).to_string(index=False))
+
+def print_anomalies_report(anomalies, ticker):
+    print(f"\n===== Аномальные доходности: {ticker} =====")
+    for period, data in anomalies.items():
+        print(f"\n--- Период {period} дн. торгов (найдено: {data['count']}) ---")
+        if data["count"]:
+            df = pd.DataFrame({"Дата": data["dates"], "Доходность": data["values"]})
+            df["Доходность"] = (df["Доходность"] * 100).round(2).astype(str) + "%"
+            print(df.to_string(index=False))
+for t in tickers:
+        
+    integrity = data_integrity_report(prices[t],t )
+    print_integrity_report(integrity, t)
+
+    anomalies = detect_anomalies(prices[t])
+    print_anomalies_report(anomalies, t)
