@@ -1,4 +1,4 @@
-import yfinance as yf 
+#import yfinance as yf 
 import matplotlib.pyplot as plt 
 import matplotlib.dates as mdates 
 import requests
@@ -37,4 +37,4 @@ while True:
         break
 df = pd.DataFrame(all_rows, columns=data["history"]["columns"])
 print(df.shape)
-print(df[["TRADEDATE","CLOSE"]]).tail()
+print(df[["TRADEDATE","CLOSE"]]).tail()#
